@@ -456,7 +456,20 @@ async def weekly_report(
     members = cursor.fetchall()
 
     # همه تمرین‌ها
-    week_dates = get_previous_week_dates()
+    today = date.today()
+
+    days_since_saturday = (today.weekday() + 2) % 7
+
+    current_saturday = today - timedelta(
+        days=days_since_saturday
+    )
+
+    week_dates = [
+        (
+            current_saturday + timedelta(days=i)
+        ).isoformat()
+        for i in range(7)
+    ]
 
     placeholders = ",".join(
         ["?"] * len(week_dates)
