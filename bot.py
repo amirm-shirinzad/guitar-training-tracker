@@ -818,5 +818,5 @@ app.add_handler(
 
 
 print("Bot is running...")
-
+print("BOT VERSION 2")
 app.run_polling()
