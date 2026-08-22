@@ -761,6 +761,115 @@ async def is_admin(
         "creator"
     ]
 
+async def last_week_report(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    # فقط ادمین‌ها
+    if not await is_admin(update):
+        await update.message.reply_text(
+            "❌ این دستور فقط برای ادمین‌های گروه است."
+        )
+        return
+
+    connection = sqlite3.connect("workout.db")
+    cursor = connection.cursor()
+
+    # همه اعضا
+    cursor.execute("""
+        SELECT telegram_id, name
+        FROM members
+        ORDER BY rowid
+    """)
+
+    members = cursor.fetchall()
+
+    # تاریخ‌های هفته قبل
+    week_dates = get_previous_week_dates()
+
+    placeholders = ",".join(
+        ["?"] * len(week_dates)
+    )
+
+    # تمرین‌های هفته قبل
+    cursor.execute(
+        f"""
+        SELECT telegram_id, workout_day, status
+        FROM workouts
+        WHERE date IN ({placeholders})
+        """,
+        week_dates
+    )
+
+    workouts = cursor.fetchall()
+
+    connection.close()
+
+    # ساخت:
+    # telegram_id -> day -> status
+    workout_data = {}
+
+    for telegram_id, workout_day, status in workouts:
+
+        if telegram_id not in workout_data:
+            workout_data[telegram_id] = {}
+
+        workout_data[telegram_id][workout_day] = status
+
+    # ساخت گزارش
+    lines = ["📋 گزارش هفته قبل\n"]
+
+    total_reported = 0
+    total_possible = len(members) * 7
+
+    for telegram_id, name in members:
+
+        lines.append(f"👤 {name}")
+
+        person_data = workout_data.get(
+            telegram_id,
+            {}
+        )
+
+        person_reported = 0
+
+        for day in DAYS:
+
+            if day in person_data:
+
+                status = person_data[day]
+
+                lines.append(
+                    f"{day:<10} {status}"
+                )
+
+                person_reported += 1
+                total_reported += 1
+
+            else:
+
+                lines.append(
+                    f"{day:<10} —"
+                )
+
+        lines.append(
+            f"📊 اعلام‌شده: {person_reported}/7\n"
+        )
+
+    lines.append("━━━━━━━━━━━━━━━━")
+
+    lines.append(
+        f"📊 مجموع اعلام‌ها: "
+        f"{total_reported}/{total_possible}"
+    )
+
+    report = (
+        "📋 گزارش هفته قبل\n"
+        + "\n".join(lines)
+    )
+
+    await update.message.reply_text(report)
 
 # -----------------------------
 # اجرای برنامه
@@ -803,11 +912,17 @@ app.add_handler(
 )
 
 app.add_handler(
+    CommandHandler("lastweek", last_week_report)
+)
+
+app.add_handler(
     CallbackQueryHandler(
         register_callback,
         pattern="^register:"
     )
 )
+
+
 
 app.add_handler(
     MessageHandler(
